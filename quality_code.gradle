@@ -1,0 +1,95 @@
+apply plugin: 'pmd'
+apply plugin: 'findbugs'
+apply plugin: 'jacoco-android'
+apply plugin: 'org.sonarqube'
+apply plugin: 'checkstyle'
+
+findbugs {
+    ignoreFailures = true
+    reportsDir = file("$project.buildDir/outputs/")
+    reportLevel = "medium"
+    effort = "max"
+}
+
+pmd {
+    ignoreFailures = true
+    reportsDir = file("$project.buildDir/outputs/")
+}
+
+task findbugs(type: FindBugs, dependsOn: assembleDebug) {
+    description 'Run findbugs'
+    group 'verification'
+
+    classes = fileTree("build/intermediates/classes/debug/")
+    source = fileTree('src/main/java')
+    classpath = files()
+
+    effort = 'max'
+
+    excludeFilter = file("../setup/findbugs.xml")
+
+    reports {
+        xml.enabled = false
+        html.enabled = true
+    }
+}
+
+task pmd(type: Pmd, dependsOn: assembleDebug) {
+    description 'Run pmd'
+    group 'verification'
+
+    ruleSets = ["java-basic", "java-braces", "java-strings", "java-design", "java-unusedcode"]
+    source = fileTree('src/main/java')
+
+    reports {
+        xml.enabled = false
+        html.enabled = true
+    }
+}
+
+task checkstyle(type: Checkstyle) {
+    configFile file("../setup/checkstyle.xml")
+    source 'src'
+    include '**/*.java'
+    exclude '**/gen/**'
+
+    classpath = files()
+}
+
+sonarqube {
+    properties {
+        property "sonar.exclusions", "**/*Generated.java"
+        property "sonar.projectName", "ProjectName"
+        property "sonar.java.coveragePlugin", "jacoco"
+        property "sonar.jacoco.reportPath", "$buildDir/jacoco/testDebugUnitTest.exec"
+        property "sonar.junit.reportsPath", "$buildDir/test-results/debug/"
+        property "sonar.host.url", "http://localhost:9000/sonar/"
+        property "sonar.jdbc.url", "jdbc:postgresql://localhost/sonar"
+        property "sonar.jdbc.driverClassName", "org.postgresql.Driver"
+        property "sonar.jdbc.username", "sonar"
+        property "sonar.jdbc.password", "sonar"
+        property "sonar.language", "java"
+        property "sonar.sources", "src/main/"
+        property "sonar.tests", "src/test/"
+    }
+}
+
+android {
+    lintOptions {
+        abortOnError false
+        quiet true
+        lintConfig file("../setup/lint.xml")
+    }
+}
+
+check.doLast {
+    project.tasks.getByName("findbugs").execute()
+    project.tasks.getByName("pmd").execute()
+    project.tasks.getByName("checkstyle").execute()
+    project.tasks.getByName("lint").execute()
+}
+
+// Enforce the coding standard
+assembleDebug.doLast {
+    project.tasks.getByName("checkstyle").execute()
+}
